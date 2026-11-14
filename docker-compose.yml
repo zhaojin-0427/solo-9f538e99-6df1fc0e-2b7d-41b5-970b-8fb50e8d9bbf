@@ -1,0 +1,24 @@
+services:
+  api:
+    build: .
+    image: pm25-daily-api:1.0.0
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      DATABASE_PATH: /data/pm25.db
+    volumes:
+      - pm25-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2)"
+      interval: 10s
+      timeout: 3s
+      start_period: 5s
+      retries: 5
+
+volumes:
+  pm25-data:
