@@ -37,6 +37,29 @@ CREATE TABLE IF NOT EXISTS pm25_readings (
         OR (retracted = 0 AND value IS NOT NULL)
     )
 );
+
+-- 事件确认：一条记录绑定一次查询的站点/日期区间/阈值，以及当时所见事件的
+-- 内容指纹（event_id）。event_id 由站点、阈值、事件构成小时的时刻和浓度决定，
+-- 因此事件被补报、修订或撤回改写后，旧 event_id 不会再与任何新事件匹配。
+-- 同一 (区间, 阈值, 事件) 只保留一条确认；重复确认是幂等的。
+CREATE TABLE IF NOT EXISTS pm25_event_confirmations (
+    confirmation_id TEXT NOT NULL PRIMARY KEY,
+    station_id      TEXT NOT NULL,
+    start_date      TEXT NOT NULL,       -- 查询区间起（含）
+    end_date        TEXT NOT NULL,       -- 查询区间止（含）
+    threshold       REAL NOT NULL,       -- 超过该值（严格大于）才计入
+    event_id        TEXT NOT NULL,       -- 事件内容指纹
+    event_start     TEXT NOT NULL,       -- 事件首个超阈值小时的北京时间
+    event_end       TEXT NOT NULL,       -- 事件末个超阈值小时的北京时间（含）
+    peak_value      REAL NOT NULL,
+    duration_hours  INTEGER NOT NULL,
+    source_hours    TEXT NOT NULL,       -- 构成小时的快照（JSON）
+    confirmed_at    TEXT NOT NULL,
+    CHECK (length(station_id) > 0),
+    CHECK (start_date <= end_date),
+    CHECK (duration_hours >= 3),
+    UNIQUE (station_id, start_date, end_date, threshold, event_id)
+);
 """
 
 # 主键 (station_id, obs_date, hour, revision) 已覆盖日报查询的等值前缀，
@@ -59,7 +82,8 @@ class Database:
         try:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA synchronous=NORMAL")
-            conn.execute(SCHEMA_SQL)
+            # SCHEMA_SQL 含多条语句，executescript 允许一次建表。
+            conn.executescript(SCHEMA_SQL)
         finally:
             conn.close()
 

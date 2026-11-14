@@ -18,6 +18,7 @@ from . import __version__
 from .api import router
 from .config import Settings
 from .db import Database
+from .events import EventService
 from .service import ReadingService
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -53,16 +54,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         yield
 
     app = FastAPI(
-        title="PM2.5 站点日报 API",
+        title="PM2.5 站点日报与超阈值事件 API",
         version=__version__,
         lifespan=lifespan,
         description=(
-            "接收站点 PM2.5 小时值补报、校准修订与撤回，并按北京时间日期查询日均值。\n\n"
-            "修订语义：每小时以最大 revision 为准；同号同内容幂等；同号不同内容整批 409。"
+            "接收站点 PM2.5 小时值补报、校准修订与撤回，按北京时间日期查询日均值，"
+            "并查询 / 确认连续超阈值事件。\n\n"
+            "修订语义：每小时以最大 revision 为准；同号同内容幂等；同号不同内容整批 409。\n\n"
+            "事件语义：只用最高修订的有效浓度，严格超过阈值且连续至少 3 小时才算事件，"
+            "缺测或撤回截断，跨午夜仍连续。确认绑定查询区间、阈值与事件内容，"
+            "事件被改写后旧确认失效。"
         ),
     )
     app.state.database = database
     app.state.service = ReadingService(database)
+    app.state.event_service = EventService(database)
 
     @app.exception_handler(RequestValidationError)
     async def _validation_handler(_: Request, exc: RequestValidationError) -> JSONResponse:

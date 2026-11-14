@@ -17,6 +17,10 @@ MAX_BATCH_RECORDS = 1000
 # 输入中的 date/hour 表示北京时间（Asia/Shanghai）下的观测日期与小时。
 BEIJING_TIMEZONE = "Asia/Shanghai"
 
+# 连续超阈值事件：至少 3 个连续小时；查询区间最多跨 3 个北京日期（含两端）。
+MIN_EVENT_HOURS = 3
+MAX_EVENT_QUERY_DAYS = 3
+
 
 @dataclass(frozen=True)
 class Settings:
